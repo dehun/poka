@@ -1,8 +1,14 @@
 package poka.poker
 
+
 import poka.poker.card._
+import cats.data._
+import cats.implicits._
+import cats._
+
 
 import scala.util.Random
+
 
 object Deck {
   val orderedDeck = Deck(for {
@@ -16,8 +22,19 @@ object Deck {
 }
 
 case class Deck(cards:List[Card]) {
-  def poll:Option[(Card, Deck)] = cards match {
-    case x::xs => Some(x, Deck(xs))
+  def poll:Option[(Deck, Card)] = cards match {
+    case x::xs => Some(Deck(xs), x)
     case _ => None
+  }
+
+  def pollN(n:Int):Option[(Deck, List[Card])] = {
+    type DeckOptState[A] = StateT[Option, Deck, A]
+    (1 to n).toList.traverse[DeckOptState, Card] {_:Int =>
+      for {
+        deck <- StateT.get[Option, Deck]
+        cd <- StateT.liftF[Option, Deck, (Deck, Card)](deck.poll)
+        _ <- StateT.set[Option, Deck](cd._1)
+      } yield cd._2
+    }.run(this)
   }
 }
