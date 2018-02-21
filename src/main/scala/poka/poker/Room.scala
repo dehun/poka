@@ -1,6 +1,6 @@
 package poka.poker
 
-import poka.poker.Room.RoomError.{WrongMoveOrder, WrongTurnOrder}
+import poka.poker.Room.RoomError.{TooManyPlayers, WrongMoveOrder, WrongTurnOrder}
 import poka.poker.Room.RoomRound.PreFlop
 import poka.poker.Room._
 import poka.poker.card.Card
@@ -59,14 +59,17 @@ object Room {
 case class PlayerId(id:String)
 
 case class Room(players:Map[PlayerId, PlayerState], folded:Set[PlayerId], roomRound:RoomRound, deck:Deck, nextMover:Option[PlayerId]) {
-  def joinPlayer(playerId:PlayerId, stack:Stack):Room = {
+  def joinPlayer(playerId:PlayerId, stack:Stack):Either[RoomError, Room] = {
     if (roomRound == PreFlop) {
-      val (newDeck, cards) = deck.pollN(2).get // TODO either
-      val newPlayer = playerId -> PlayerState(0, stack, this.players.size, cards.toSet)
-      this.copy(players = this.players + newPlayer, deck=newDeck)
+      {
+        for {
+          (newDeck, cards) <- deck.pollN(2)
+          newPlayer = playerId -> PlayerState(0, stack, this.players.size, cards.toSet)}
+          yield Right(this.copy(players = this.players + newPlayer, deck = newDeck))
+      }.getOrElse(Left(TooManyPlayers))
     } else {
       val newPlayer = playerId -> PlayerState(0, stack, this.players.size, Set.empty)
-      this.copy(players=this.players + newPlayer, folded=this.folded+playerId)
+      Right(this.copy(players=this.players + newPlayer, folded=this.folded+playerId))
     }
   }
 
